@@ -6,7 +6,7 @@ from sklearn.preprocessing import OneHotEncoder
 from medpy.io import load
 
 
-def To_Array(voxel, dataset_dir = os.path.abspath(os.path.join(os.curdir, os.pardir)) + "\\Dataset\\"):
+def to_Arrays_From_Dataset(voxel, dataset_dir = os.path.abspath(os.path.join(os.curdir, os.pardir)) + "\\Dataset\\"):
     dataset_dir = dataset_dir + "Voxel_%s\\"%voxel
     class_list = array(os.listdir(dataset_dir+"Training\\"))
     
@@ -29,7 +29,7 @@ def To_Array(voxel, dataset_dir = os.path.abspath(os.path.join(os.curdir, os.par
             for filename in file_list:
                 if(filename[-4:] != "zraw" ):
                     file_path = class_path + filename
-                    data, t  = load(file_path)
+                    data, header  = load(file_path)
                     input_array.append(np.array(data))
                     label_array.append(np.array(onehot_encoded[classindex]))
         input_array = np.reshape(input_array, (np.shape(input_array) + (1,)))
@@ -42,9 +42,14 @@ def To_Array(voxel, dataset_dir = os.path.abspath(os.path.join(os.curdir, os.par
             test_set[1]=label_array
         
     return train_set, test_set
-train, test = To_Array(32)
+
+def to_Array_From_File(DIR):
+    data, header  = load(DIR)
+    return np.reshape(data, (np.shape(data) + (1,)))
+    
+
 # =============================================================================
-# train, test = To_Array(32)
+# train, test = to_Arrays_From_Dataset(32)
 # train_x = train[0]
 # train_y = train[1]
 # for i_obj, obj in enumerate(train[0]):

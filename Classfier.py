@@ -18,7 +18,7 @@ from tensorflow.keras.layers import Dense, Conv3D, MaxPooling3D, Flatten
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from tensorflow.keras.utils import multi_gpu_model
 
-from Data_to_Array import To_Array
+from data_to_Array import to_Arrays_From_Dataset
 
 # 학습에 사용한 이미지는 (32, 32, 32) 크기에 체널이 1개임
 voxel = 32
@@ -44,7 +44,7 @@ def get_available_gpus():
    return [x.name for x in local_device_protos if x.device_type == 'GPU']
 #%% 데이터셋을 준비한다. (셔플 포함)
 def prepare_dataset():
-    train_set, test_set = To_Array(voxel)
+    train_set, test_set = to_Arrays_From_Dataset(voxel)
     
     n_tr = train_set[0].shape[0]
     p_tr = list(np.random.permutation(n_tr))
@@ -107,6 +107,15 @@ def define_model():
     model.add(Dense(units=n_classes, activation='softmax'))
         
     return model
+#%% 학습 기록 저장
+def save_history(hist):
+    now_time = datetime.datetime.now()
+    folder_name = os.path.join(output_folder_path,
+                               'history_' + now_time.strftime('%Y%m%d_%H%M%S'))
+    if not os.path.isfile(folder_name):
+        os.makedirs(folder_name)
+    with open(folder_name + '\\trainHistoryDict', 'wb') as file:
+        pickle.dump(hist.history, file)
 #%% 메인 함수
 def main():
     start_time = datetime.datetime.now()            
@@ -141,7 +150,7 @@ def main():
     print ("Number of testing examples: " + str(m_test))
     print ("Number of epochs: " + str(num_epochs))
     print ("Batch size: " + str(batch_size))    
-    print ("Image size: (" + str(dims[0]) + ", " + str(dims[1]) + ")")
+    print ("Image size: (" + str(dims[0]) + ", " + str(dims[1]) + ", " + str(dims[2]) + ")")
     print ("Input channel: " + str(n_channels))
     
     # 모델 생성
@@ -167,27 +176,29 @@ def main():
         f.write(model.to_json())
             
     # 콜벡 함수 지정
-    '''
+    
     callbacks = []    
         
-    # 가장 좋은 가중치를 저장
-    checkpoint_best_path = output_folder_path + '\\model_weights_best.h5'
-    checkpoint_best = ModelCheckpoint(filepath=checkpoint_best_path, save_best_only=True, save_weights_only=True, verbose=1)
+    # 가장 좋은 모델을 저장
+    checkpoint_best_path = output_folder_path + '\\model_best.h5'
+    checkpoint_best = ModelCheckpoint(filepath=checkpoint_best_path, save_best_only=True, verbose=1)
     callbacks.append(checkpoint_best)
-    '''
+    
     # 모델 학습시키기
     print("Start Training")
     start_time = time.time()
     
     #history = parallel_model.fit(train_x, train_y, batch_size=batch_size, epochs=num_epochs)
     
-    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=0, mode='min') # 조기종료 콜백함수 정의
+    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=5, verbose=0, mode='min') # 조기종료 콜백함수 정의
+    callbacks.append(early_stopping) 
+    
     if use_gpu:
         history = parallel_model.fit(train_set[0], train_set[1], batch_size = batch_size,
-                                     epochs = num_epochs, validation_split = validation_data_ratio, callbacks=[early_stopping])
+                                     epochs = num_epochs, validation_split = validation_data_ratio, callbacks=callbacks)
     else:
         history = model.fit(train_set[0], train_set[1], batch_size = batch_size,
-                            epochs = num_epochs, validation_split = validation_data_ratio, callbacks=[early_stopping])
+                            epochs = num_epochs, validation_split = validation_data_ratio, callbacks=callbacks)
         
 # =============================================================================
 #     # 데이터 강화를 위한 ImageDataGenerator 생성
@@ -226,9 +237,9 @@ def main():
     
     # 가중치를 저장한다.
     model.save_weights(os.path.join(output_folder_path, 'model_weights.h5'))
-    
     # 학습 그래프 출력
     plot_history(history)
+    save_history(history)
     
     # 시험셋을 이용해 모델 평가
     if use_gpu:
